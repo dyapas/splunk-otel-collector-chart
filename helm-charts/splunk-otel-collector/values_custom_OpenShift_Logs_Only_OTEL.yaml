@@ -98,9 +98,3 @@ logsCollection:
         com.splunk.source: /var/log/kube-apiserver/audit.log
         host.name: 'EXPR(env("K8S_NODE_NAME"))'
         com.splunk.sourcetype: kube:kube-apiserver-audit
-
-################################################################################
-# Extra system configuration
-################################################################################
-nodeSelector:
-    openshift.io/node-selector: ""
