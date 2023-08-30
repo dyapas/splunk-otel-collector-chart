@@ -1,0 +1,106 @@
+clusterName: "ocp-sbx-otel"
+
+################################################################################
+# Splunk Enterprise configuration.
+################################################################################
+splunkPlatform:
+  endpoint: "http://<splunk-host>:8088/services/collector"
+  token: "ReplaceWithYourHECToken"
+  index: "openshift"
+  source: "kubernetes"
+  sourcetype: "ose"
+  insecureSkipVerify: true
+
+logsEngine: otel
+distribution: "openshift"
+environment: sandbox
+
+################################################################################
+# OpenTelemetry collector running as an deamonset agent on every node.
+# It collects metrics and traces and send them to Signalfx backend.
+################################################################################
+
+agent:
+  enabled: true
+  controlPlaneMetrics:
+    apiserver:
+      enabled: false
+    controllerManager:
+      enabled: false
+    coredns:
+      enabled: false
+    proxy:
+      enabled: false
+    scheduler:
+      enabled: false
+  # For example to disable zipkin ports set `agent.ports.zipkin: null`.
+  ports:
+    otlp:
+      containerPort: 4317
+      hostPort: 4317
+      protocol: TCP
+      enabled_for: [traces, metrics, logs, profiling]
+    otlp-http:
+      containerPort: 4318
+      protocol: TCP
+      enabled_for: [metrics, traces, logs, profiling]
+    otlp-http-old:
+      containerPort: 55681
+      protocol: TCP
+      enabled_for: [metrics, traces, logs]
+    sfx-forwarder: null
+    zipkin: null
+    jaeger-thrift: null
+    jaeger-grpc: null
+    fluentforward:
+      containerPort: 8006
+      hostPort: 8006
+      protocol: TCP
+      enabled_for: [logs]
+    signalfx: null
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1500Mi
+    requests:
+      cpu: 100m
+      memory: 500Mi
+  # Extra enviroment variables to be set in the OTel agent container
+  extraEnvs: []
+  # Extra volumes to be mounted to the agent daemonset.
+  # The volumes will be available for both OTel agent and fluentd containers.
+  extraVolumes:
+    - name: kube-apiserver-audit-log
+      hostPath:
+        path: /var/log/kube-apiserver
+  extraVolumeMounts:
+    - name: kube-apiserver-audit-log
+      mountPath: /var/log/kube-apiserver
+
+logsCollection:
+  containers:
+    enabled: true
+    containerRuntime: "cri-o"
+    excludePaths:
+      - /var/log/containers/*kube-system_*.log
+      - /var/log/containers/kube-svc-redirect*.log
+      - /var/log/containers/tiller*.log
+      - /var/log/containers/*_openshift*.log
+      - /var/log/containers/*_dynatrace_*.log
+    useSplunkIncludeAnnotation: true
+  extraFileLogs:
+    filelog/kube-apiserver-audit-log:
+      include: [/var/log/kube-apiserver/audit.log]
+      start_at: beginning
+      include_file_path: true
+      include_file_name: false
+      resource:
+        com.splunk.source: /var/log/kube-apiserver/audit.log
+        host.name: 'EXPR(env("K8S_NODE_NAME"))'
+        com.splunk.sourcetype: kube:kube-apiserver-audit
+
+################################################################################
+# Extra system configuration
+################################################################################
+nodeSelector:
+    openshift.io/node-selector: ""
